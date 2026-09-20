@@ -12,6 +12,18 @@
             cursor: pointer;
             transition: all 0.2s ease-in-out;
         }
+        /* Nuevo estilo para los textos copiables */
+        .copy-click {
+            cursor: copy;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        .copy-click:hover {
+            background-color: #e9ecef;
+            color: #0d6efd;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body class="bg-light pb-5">
@@ -138,7 +150,8 @@
                                 <input type="text" id="inputInterfaz" class="form-control font-monospace border-primary" placeholder="Ej. f0/0, g0/1/0, s0/0">
                                 <button class="btn btn-success fw-bold" id="btnAgregarInterfaz">+</button>
                             </div>
-                            
+                           
+                        </div>
                         
                         <div class="col-md-8 mt-3 mt-md-0">
                             <label class="form-label fw-bold text-secondary mb-3">Interfaces en este nodo (Click en Configurar):</label>
@@ -293,7 +306,7 @@
     <div class="container">
         <p class="mb-1 fw-bold fs-6">Calculadora IP & Generador de Scripts Cisco</p>
         <p class="mb-1 text-light small">Desarrollado por: <span class="fw-semibold text-info">Antonio Duran Islas</span></p>
-        <p class="mb-0 text-secondary" style="font-size: 0.8rem;"> ANKA // CONTACTO : duranantonio90@gmail.com &copy; 2026</p>
+        <p class="mb-0 text-secondary" style="font-size: 0.8rem;">Ingeniería en Sistemas Computacionales &copy; 2026</p>
     </div>
 </footer>
 

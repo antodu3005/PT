@@ -145,7 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 hosts: numHosts.toLocaleString(),
                 interfaces: [],
                 dhcpPools: [], 
-                ripNetworks: [], // <- Arreglo para RIPv2
+                ripNetworks: [], 
                 scriptGenerado: null,
                 auditoriaLogs: []
             };
@@ -275,14 +275,16 @@ document.addEventListener("DOMContentLoaded", () => {
             tablaNodosBody.innerHTML = listaNodos.map((nodo, index) => {
                 const isSelected = index === nodoSeleccionadoIndex;
                 const totalIntf = nodo.interfaces.length;
+                
+                // Aplicamos las clases span.copy-click a los valores IP para facilitar su copiado[cite: 6]
                 return `
                     <tr class="fila-nodo ${isSelected ? 'table-primary border-primary' : ''}" data-index="${index}">
                         <td class="fw-bold ${isSelected ? 'text-dark' : 'text-primary'}">${nodo.cliente}</td>
                         <td><span class="badge ${isSelected ? 'bg-primary' : 'bg-secondary'}">${nodo.direccion}</span></td>
-                        <td>${nodo.mascara}</td>
-                        <td>${nodo.hostMin}</td>
-                        <td>${nodo.hostMax}</td>
-                        <td>${nodo.broadcast}</td>
+                        <td><span class="copy-click" title="Clic para copiar">${nodo.mascara}</span></td>
+                        <td><span class="copy-click" title="Clic para copiar">${nodo.hostMin}</span></td>
+                        <td><span class="copy-click" title="Clic para copiar">${nodo.hostMax}</span></td>
+                        <td><span class="copy-click" title="Clic para copiar">${nodo.broadcast}</span></td>
                         <td>${nodo.hosts}</td>
                         <td><span class="badge bg-${totalIntf > 0 ? 'success' : 'light text-dark'} border">${totalIntf}</span></td>
                         <td>
@@ -493,7 +495,6 @@ document.addEventListener("DOMContentLoaded", () => {
         seccionRouter.style.display = "none";
     });
 
-    // Toggles DHCP y RIP
     checkHabilitarDhcp.addEventListener("change", function() {
         formularioDhcp.style.display = this.checked ? "block" : "none";
     });
@@ -805,6 +806,34 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     tablaNodosBody.addEventListener("click", function(event) {
+        
+        // --- NUEVA LÓGICA DE COPIADO DIRECTO ---
+        // Si el usuario dio clic en un elemento .copy-click, se copia y detenemos todo lo demás
+        if (event.target.closest(".copy-click")) {
+            event.stopPropagation(); // Evita que se abra/cierre la fila del nodo
+            
+            const span = event.target.closest(".copy-click");
+            const textToCopy = span.textContent.trim();
+            
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                // Guardamos el color original
+                const originalBg = span.style.backgroundColor;
+                const originalColor = span.style.color;
+                
+                // Efecto de copiado exitoso (Verde)
+                span.style.backgroundColor = "#198754";
+                span.style.color = "white";
+                
+                setTimeout(() => {
+                    // Restauramos después de 800ms
+                    span.style.backgroundColor = originalBg;
+                    span.style.color = originalColor;
+                }, 800);
+            });
+            return;
+        }
+
+        // Acción: Eliminar nodo
         if (event.target.closest(".btn-eliminar")) {
             const btn = event.target.closest(".btn-eliminar");
             const index = parseInt(btn.getAttribute("data-index"), 10);
@@ -822,6 +851,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        // Acción: Seleccionar nodo completo
         const fila = event.target.closest(".fila-nodo");
         if (fila) {
             const index = parseInt(fila.getAttribute("data-index"), 10);
