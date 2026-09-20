@@ -406,8 +406,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 const cls = oct[0] < 128 ? 8 : (oct[0] < 192 ? 16 : 24);
                 const maskCls = calcularMascara(cls);
                 const redCalc = calcularRed(oct, maskCls);
+                // [Polished: Ajuste pedagógico para redes VLSM en RIPv2]
                 if (oct.join('.') !== redCalc.join('.')) {
-                    logs.push({ tipo: 'warning', texto: `RIP: La dirección ${net} no coincide con una red de clase estándar para ${oct[0]}.0.0.0 (se resume a classful en IOS: ${redCalc.join('.')}).` });
+                    logs.push({ tipo: 'warning', texto: `RIP: La red ${net} es una subred (VLSM). Verifica que sea la deseada, IOS podría resumirla a ${redCalc.join('.')} si falta 'no auto-summary'.` });
                 }
             });
         }
@@ -931,10 +932,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function calcularMascara(cidr) { const m = []; for (let i = 0; i < 4; i++) { if (cidr >= 8) { m.push(255); cidr -= 8; } else if (cidr > 0) { m.push(256 - Math.pow(2, 8 - cidr)); cidr = 0; } else { m.push(0); } } return m; }
     function calcularRed(ipArray, maskArray) { return ipArray.map((octeto, i) => octeto & maskArray[i]); }
     function calcularBroadcast(redArray, wildcardArray) { return redArray.map((octeto, i) => octeto | wildcardArray[i]); }
-    
-    // --- ERROR CRÍTICO REPARADO AQUÍ ---
     function ipToInt(ipArray) { return ((ipArray[0] << 24) | (ipArray[1] << 16) | (ipArray[2] << 8) | ipArray[3]) >>> 0; }
-    
     function intToIp(int) { return [(int >>> 24) & 255, (int >>> 16) & 255, (int >>> 8) & 255, int & 255]; }
     function mostrarMensaje(contenedor, html, tipo) { contenedor.innerHTML = `<div class="alert alert-${tipo}" role="alert">${html}</div>`; }
 
