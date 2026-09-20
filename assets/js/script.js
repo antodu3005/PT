@@ -192,7 +192,10 @@ document.addEventListener("DOMContentLoaded", () => {
             btnGuardar.addEventListener('click', () => {
                 const clienteNombre = inputCliente.value.trim();
                 if (clienteNombre === "") { alert("Por favor, ingresa un nombre."); return; }
-                guardarNodoLista(clienteNombre, datosRedCalculada);
+                
+                // ¡CORRECCIÓN CRÍTICA! Se hace un "clon profundo" para asegurar que si guardas 2 nodos con el mismo cálculo inicial, sus interfaces no se crucen.
+                const datosClonados = JSON.parse(JSON.stringify(datosRedCalculada));
+                guardarNodoLista(clienteNombre, datosClonados);
                 inputCliente.value = ""; 
             });
 
@@ -213,18 +216,20 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!intf.ip || !intf.mascara) {
                 logs.push({ tipo: 'danger', texto: `Puerto ${intf.nombre.toUpperCase()}: Falta configurar IP y máscara.` });
             } else {
-                const ipInt = ipToInt(intf.ip.split('.').map(Number));
-                const maskInt = ipToInt(intf.mascara.split('.').map(Number));
-                const redInt = ipInt & maskInt;
-                const wildInt = ~maskInt >>> 0;
-                const broadcastInt = redInt | wildInt;
+                // ¡CORRECCIÓN! Usamos arreglos en lugar de números de 32bits para evitar el error de precisión y negativos de JavaScript
+                const ipOct = intf.ip.split('.').map(Number);
+                const maskOct = intf.mascara.split('.').map(Number);
+                const redOct = calcularRed(ipOct, maskOct);
+                const wildOct = maskOct.map(m => 255 - m);
+                const bcastOct = calcularBroadcast(redOct, wildOct);
 
-                if (ipInt === redInt) {
-                    logs.push({ tipo: 'danger', texto: `Puerto ${intf.nombre.toUpperCase()}: La IP ${intf.ip} es dirección de RED (.0).` });
-                } else if (ipInt === broadcastInt) {
-                    logs.push({ tipo: 'danger', texto: `Puerto ${intf.nombre.toUpperCase()}: La IP ${intf.ip} es dirección de BROADCAST.` });
+                const ipStr = ipOct.join('.');
+                if (ipStr === redOct.join('.')) {
+                    logs.push({ tipo: 'danger', texto: `Puerto ${intf.nombre.toUpperCase()}: La IP ${intf.ip} es dirección de RED (.0), inválida para un host.` });
+                } else if (ipStr === bcastOct.join('.')) {
+                    logs.push({ tipo: 'danger', texto: `Puerto ${intf.nombre.toUpperCase()}: La IP ${intf.ip} es dirección de BROADCAST, inválida para un host.` });
                 } else {
-                    logs.push({ tipo: 'success', texto: `Puerto ${intf.nombre.toUpperCase()}: IP ${intf.ip} válida de host.` });
+                    logs.push({ tipo: 'success', texto: `Puerto ${intf.nombre.toUpperCase()}: IP ${intf.ip} es un host válido.` });
                 }
 
                 if (intf.helper && !esIPv4Valida(intf.helper)) {
@@ -238,13 +243,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 logs.push({ tipo: 'warning', texto: `DHCP habilitado pero sin pools configurados.` });
             } else {
                 nodo.dhcpPools.forEach(pool => {
-                    const netInt = ipToInt(pool.red.split('.').map(Number));
-                    const maskInt = ipToInt(pool.mascara.split('.').map(Number));
-                    const calcRed = netInt & maskInt;
-                    if (netInt !== calcRed) {
-                        logs.push({ tipo: 'danger', texto: `DHCP [${pool.nombre}]: Red ${pool.red} no coincide con máscara ${pool.mascara}.` });
+                    const netOct = pool.red.split('.').map(Number);
+                    const maskOct = pool.mascara.split('.').map(Number);
+                    const calcRedOct = calcularRed(netOct, maskOct);
+                    
+                    if (netOct.join('.') !== calcRedOct.join('.')) {
+                        logs.push({ tipo: 'danger', texto: `DHCP [${pool.nombre}]: La red ${pool.red} no corresponde a la máscara ${pool.mascara}. (Debería ser ${calcRedOct.join('.')})` });
                     } else {
-                        logs.push({ tipo: 'success', texto: `DHCP [${pool.nombre}]: Red y máscara congruentes.` });
+                        logs.push({ tipo: 'success', texto: `DHCP [${pool.nombre}]: Dirección de red y máscara matemáticamente congruentes.` });
                     }
                 });
             }
@@ -276,7 +282,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 const isSelected = index === nodoSeleccionadoIndex;
                 const totalIntf = nodo.interfaces.length;
                 
-                // Aplicamos las clases span.copy-click a los valores IP para facilitar su copiado[cite: 6]
                 return `
                     <tr class="fila-nodo ${isSelected ? 'table-primary border-primary' : ''}" data-index="${index}">
                         <td class="fw-bold ${isSelected ? 'text-dark' : 'text-primary'}">${nodo.cliente}</td>
@@ -807,33 +812,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     tablaNodosBody.addEventListener("click", function(event) {
         
-        // --- NUEVA LÓGICA DE COPIADO DIRECTO ---
-        // Si el usuario dio clic en un elemento .copy-click, se copia y detenemos todo lo demás
+        // Copiar directo al portapapeles
         if (event.target.closest(".copy-click")) {
-            event.stopPropagation(); // Evita que se abra/cierre la fila del nodo
-            
+            event.stopPropagation(); 
             const span = event.target.closest(".copy-click");
             const textToCopy = span.textContent.trim();
-            
             navigator.clipboard.writeText(textToCopy).then(() => {
-                // Guardamos el color original
                 const originalBg = span.style.backgroundColor;
                 const originalColor = span.style.color;
-                
-                // Efecto de copiado exitoso (Verde)
                 span.style.backgroundColor = "#198754";
                 span.style.color = "white";
-                
-                setTimeout(() => {
-                    // Restauramos después de 800ms
-                    span.style.backgroundColor = originalBg;
-                    span.style.color = originalColor;
-                }, 800);
+                setTimeout(() => { span.style.backgroundColor = originalBg; span.style.color = originalColor; }, 800);
             });
             return;
         }
 
-        // Acción: Eliminar nodo
+        // Eliminar nodo
         if (event.target.closest(".btn-eliminar")) {
             const btn = event.target.closest(".btn-eliminar");
             const index = parseInt(btn.getAttribute("data-index"), 10);
@@ -851,7 +845,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        // Acción: Seleccionar nodo completo
+        // Seleccionar nodo completo
         const fila = event.target.closest(".fila-nodo");
         if (fila) {
             const index = parseInt(fila.getAttribute("data-index"), 10);
