@@ -147,7 +147,7 @@
                         <div class="col-md-4 border-end">
                             <label class="form-label fw-bold text-secondary">Agregar Interfaz Conectada:</label>
                             <div class="input-group mb-2 mt-2">
-                                <input type="text" id="inputInterfaz" class="form-control font-monospace border-primary" placeholder="Ej. f0/0, g0/1/0, s0/0">
+                                <input type="text" id="inputInterfaz" class="form-control font-monospace border-primary" placeholder="Ej. f0/0, g0/1/0, s0/0, lo0">
                                 <button class="btn btn-success fw-bold" id="btnAgregarInterfaz">+</button>
                             </div>
                            
@@ -179,7 +179,7 @@
         </div>
     </div>
 
-    <!-- Sección: Generador CLI Router con DHCP y RIPv2 -->
+    <!-- Sección: Generador CLI Router con DHCP, RIPv2 y EIGRP -->
     <div class="row justify-content-center mt-4" id="seccionRouter" style="display: none;">
         <div class="col-md-11">
             <div class="card shadow-sm border-0 border-top border-success border-3">
@@ -200,6 +200,10 @@
                                 <input class="form-check-input ms-0 me-2 border-secondary" type="checkbox" id="checkHabilitarRip">
                                 <label class="form-check-label fw-bold text-dark" for="checkHabilitarRip">Habilitar RIPv2</label>
                             </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input ms-0 me-2 border-secondary" type="checkbox" id="checkHabilitarEigrp">
+                                <label class="form-check-label fw-bold text-dark" for="checkHabilitarEigrp">Habilitar EIGRP</label>
+                            </div>
                         </div>
                         
                         <!-- Panel Formulario DHCP -->
@@ -212,8 +216,8 @@
                                         <input type="text" id="dhcpPoolName" class="form-control form-control-sm font-monospace border-success" placeholder="Ej. VLAN10_POOL">
                                     </div>
                                     <div class="mb-2">
-                                        <label class="form-label text-secondary small fw-bold mb-1">IP(s) Excluida(s) (Opcional):</label>
-                                        <input type="text" id="dhcpExcluidas" class="form-control form-control-sm font-monospace border-success" placeholder="Ej. 192.168.1.1 192.168.1.10">
+                                        <label class="form-label text-secondary small fw-bold mb-1">IP(s) Excluida(s) (Opcional, coma entre reglas, espacio para rangos):</label>
+                                        <input type="text" id="dhcpExcluidas" class="form-control form-control-sm font-monospace border-success" placeholder="Ej. 192.168.1.1, 192.168.1.5 192.168.1.10">
                                     </div>
                                     <div class="row g-2 mb-2">
                                         <div class="col-6">
@@ -260,6 +264,38 @@
                                 <div class="col-md-6 mt-3 mt-md-0 ps-md-4">
                                     <h6 class="fw-bold text-success mb-2">Redes Anunciadas (Network):</h6>
                                     <ul class="list-group list-group-flush" id="listaRipNetworks"></ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Panel Formulario EIGRP -->
+                        <div id="formularioEigrp" style="display: none;" class="border-top pt-3 border-success mt-3">
+                            <div class="row">
+                                <div class="col-md-6 border-end border-success pe-4">
+                                    <h6 class="fw-bold text-success mb-2">Protocolo EIGRP</h6>
+                                    <div class="mb-2">
+                                        <label class="form-label text-secondary small fw-bold mb-1">Sistema Autónomo (AS):</label>
+                                        <input type="number" id="eigrpAsInput" class="form-control form-control-sm font-monospace border-success" placeholder="Ej. 100" min="1" max="65535">
+                                    </div>
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-6">
+                                            <label class="form-label text-secondary small fw-bold mb-1">IP de Red:</label>
+                                            <input type="text" id="eigrpRedInput" class="form-control form-control-sm font-monospace border-success" placeholder="Ej. 192.168.1.0" autocomplete="off">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label text-secondary small fw-bold mb-1">Máscara normal:</label>
+                                            <input type="text" id="eigrpMascaraInput" class="form-control form-control-sm font-monospace border-success" placeholder="Ej. 255.255.255.0" autocomplete="off">
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label text-secondary small fw-bold mb-1">Wildcard (se genera automáticamente):</label>
+                                        <input type="text" id="eigrpWildcardInput" class="form-control form-control-sm font-monospace bg-white text-success fw-bold border-success" placeholder="Ej. 0.0.0.255" readonly>
+                                    </div>
+                                    <button class="btn btn-outline-success btn-sm w-100 fw-bold shadow-sm" id="btnAgregarEigrpNetwork">+ Agregar Red</button>
+                                </div>
+                                <div class="col-md-6 mt-3 mt-md-0 ps-md-4">
+                                    <h6 class="fw-bold text-success mb-2">Redes Anunciadas (Network + Wildcard):</h6>
+                                    <ul class="list-group list-group-flush" id="listaEigrpNetworks"></ul>
                                 </div>
                             </div>
                         </div>

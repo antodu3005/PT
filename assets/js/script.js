@@ -1,5 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
-    // --- Referencias del DOM ---
+    // ==========================================
+    // 1. REFERENCIAS DEL DOM
+    // ==========================================
     const formEstandar = document.getElementById("formEstandar");
     const resultadoEstandar = document.getElementById("resultadoEstandar");
     const formSustitucion = document.getElementById("formSustitucion");
@@ -40,6 +42,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnAgregarRipNetwork = document.getElementById("btnAgregarRipNetwork");
     const listaRipNetworks = document.getElementById("listaRipNetworks");
 
+    const checkHabilitarEigrp = document.getElementById("checkHabilitarEigrp");
+    const formularioEigrp = document.getElementById("formularioEigrp");
+    const eigrpAsInput = document.getElementById("eigrpAsInput");
+    const eigrpRedInput = document.getElementById("eigrpRedInput");
+    const eigrpMascaraInput = document.getElementById("eigrpMascaraInput");
+    const eigrpWildcardInput = document.getElementById("eigrpWildcardInput");
+    const btnAgregarEigrpNetwork = document.getElementById("btnAgregarEigrpNetwork");
+    const listaEigrpNetworks = document.getElementById("listaEigrpNetworks");
+
     const panelAuditoria = document.getElementById("panelAuditoria");
     const btnGenerarConfigRouter = document.getElementById("btnGenerarConfigRouter");
     const terminalRouter = document.getElementById("terminalRouter");
@@ -49,7 +60,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const seccionResumenNodos = document.getElementById("seccionResumenNodos");
     const acordeonResumenNodos = document.getElementById("acordeonResumenNodos");
 
-    // --- Estado General ---
+    // ==========================================
+    // 2. ESTADO GLOBAL
+    // ==========================================
     const listaNodos = [];
     const historialBorrados = [];
     let nodoSeleccionadoIndex = null;
@@ -57,7 +70,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const TEXTO_TERMINAL_VACIO = 'Haz clic en "Generar Código y Auditar" para evaluar IPs y crear script.';
 
-    // --- Utilidades ---
+    // ==========================================
+    // 3. UTILIDADES GENERALES
+    // ==========================================
     function esc(valor) {
         const mapa = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
         return String(valor ?? "").replace(/[&<>"']/g, c => mapa[c]);
@@ -82,6 +97,15 @@ document.addEventListener("DOMContentLoaded", () => {
             return false;
         }
         return true;
+    }
+
+    function limpiarFormularioDhcp() {
+        dhcpPoolName.value = "";
+        dhcpExcluidas.value = "";
+        dhcpRed.value = "";
+        dhcpMascara.value = "";
+        dhcpGateway.value = "";
+        dhcpDns.value = "";
     }
 
     function copiarAlPortapapeles(texto, btnElement, textoOriginal, claseBase = "", claseExito = "") {
@@ -110,7 +134,8 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 const ta = document.createElement("textarea");
                 ta.value = texto;
-                ta.style.position = "fixed"; ta.style.opacity = "0";
+                ta.style.position = "fixed";
+                ta.style.opacity = "0";
                 document.body.appendChild(ta);
                 ta.select();
                 document.execCommand("copy");
@@ -128,7 +153,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // --- Persistencia (LocalStorage) ---
+    // ==========================================
+    // 4. PERSISTENCIA (LOCALSTORAGE)
+    // ==========================================
     function leerJSON(key) {
         try {
             const parsed = JSON.parse(localStorage.getItem(key));
@@ -143,15 +170,30 @@ document.addEventListener("DOMContentLoaded", () => {
         const interfaces = (Array.isArray(base.interfaces) ? base.interfaces : []).filter(i => i && typeof i.nombre === "string");
         const dhcpPools = (Array.isArray(base.dhcpPools) ? base.dhcpPools : []).filter(p => p && typeof p.nombre === "string" && typeof p.red === "string" && typeof p.mascara === "string");
         const ripNetworks = (Array.isArray(base.ripNetworks) ? base.ripNetworks : []).filter(r => typeof r === "string");
+        const eigrpNetworks = (Array.isArray(base.eigrpNetworks) ? base.eigrpNetworks : []).filter(e => e && typeof e.red === "string" && typeof e.mascara === "string" && typeof e.wildcard === "string");
+
+        const str = (v) => (typeof v === "string" ? v : (v == null ? "" : String(v)));
 
         return {
-            cliente: "", direccion: "", mascara: "", hostMin: "", hostMax: "", broadcast: "", hosts: "", hostsCrudo: 0,
-            scriptGenerado: null,
             ...base,
-            interfaces, dhcpPools, ripNetworks,
+            cliente: str(base.cliente),
+            direccion: str(base.direccion),
+            mascara: str(base.mascara),
+            hostMin: str(base.hostMin),
+            hostMax: str(base.hostMax),
+            broadcast: str(base.broadcast),
+            hosts: str(base.hosts),
+            hostsCrudo: Number.isFinite(base.hostsCrudo) ? base.hostsCrudo : 0,
+            scriptGenerado: typeof base.scriptGenerado === "string" ? base.scriptGenerado : null,
+            interfaces,
+            dhcpPools,
+            ripNetworks,
+            eigrpNetworks,
+            eigrpAS: (base.eigrpAS !== undefined && base.eigrpAS !== null) ? String(base.eigrpAS) : "",
             auditoriaLogs: Array.isArray(base.auditoriaLogs) ? base.auditoriaLogs : [],
             dhcpHabilitado: typeof base.dhcpHabilitado === "boolean" ? base.dhcpHabilitado : dhcpPools.length > 0,
-            ripHabilitado: typeof base.ripHabilitado === "boolean" ? base.ripHabilitado : ripNetworks.length > 0
+            ripHabilitado: typeof base.ripHabilitado === "boolean" ? base.ripHabilitado : ripNetworks.length > 0,
+            eigrpHabilitado: typeof base.eigrpHabilitado === "boolean" ? base.eigrpHabilitado : eigrpNetworks.length > 0
         };
     }
 
@@ -159,28 +201,43 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             localStorage.setItem('ipcalc_nodos', JSON.stringify(listaNodos));
             localStorage.setItem('ipcalc_history', JSON.stringify(historialBorrados));
-        } catch (e) { console.warn("No se pudo guardar en localStorage:", e); }
+        } catch (e) {
+            console.warn("No se pudo guardar en localStorage:", e);
+        }
     }
 
     function cargarDatosStorage() {
         leerJSON('ipcalc_nodos').forEach(n => listaNodos.push(normalizarNodo(n)));
         leerJSON('ipcalc_history').forEach(h => {
-            if (h && Number.isInteger(h.index) && h.nodo) historialBorrados.push({ index: h.index, nodo: normalizarNodo(h.nodo) });
+            if (h && Number.isInteger(h.index) && h.nodo) {
+                historialBorrados.push({ index: h.index, nodo: normalizarNodo(h.nodo) });
+            }
         });
-        if (listaNodos.length > 0 || historialBorrados.length > 0) renderizarTabla();
+        if (listaNodos.length > 0 || historialBorrados.length > 0) {
+            renderizarTabla();
+        }
     }
 
     btnLimpiarStorage.addEventListener("click", () => {
         if (confirm("⚠️ ¿Borrar todo el progreso? Esto eliminará todos los nodos y no se puede deshacer.")) {
-            try { localStorage.removeItem('ipcalc_nodos'); localStorage.removeItem('ipcalc_history'); } catch (e) { }
+            try {
+                localStorage.removeItem('ipcalc_nodos');
+                localStorage.removeItem('ipcalc_history');
+            } catch (e) { }
             location.reload();
         }
     });
 
-    // --- Calculadora IP ---
+    // ==========================================
+    // 5. CALCULADORA IP (MOTOR PRINCIPAL)
+    // ==========================================
     formEstandar.addEventListener("submit", function (event) {
         event.preventDefault();
-        procesarCalculoIP(document.getElementById("ipInput1").value.trim(), document.getElementById("bitsInput1").value.trim(), resultadoEstandar);
+        procesarCalculoIP(
+            document.getElementById("ipInput1").value.trim(),
+            document.getElementById("bitsInput1").value.trim(),
+            resultadoEstandar
+        );
     });
 
     formSustitucion.addEventListener("submit", function (event) {
@@ -190,25 +247,34 @@ document.addEventListener("DOMContentLoaded", () => {
         const bitsValue = document.getElementById("bitsInput2").value.trim();
 
         if (ipIncompleta === "" || valorX === "" || bitsValue === "") {
-            mostrarMensaje(resultadoSustitucion, "Por favor, llena todos los campos.", "warning"); return;
+            mostrarMensaje(resultadoSustitucion, "Por favor, llena todos los campos.", "warning");
+            return;
         }
 
         const ipFinal = ipIncompleta.replace(/[xX]+/g, () => valorX);
-        procesarCalculoIP(ipFinal, bitsValue, resultadoSustitucion, `<div class="mb-2 text-warning"><small><em>IP Interpretada (XX=${esc(valorX)}): ${esc(ipFinal)}</em></small></div>`);
+        procesarCalculoIP(
+            ipFinal,
+            bitsValue,
+            resultadoSustitucion,
+            `<div class="mb-2 text-warning"><small><em>IP Interpretada (XX=${esc(valorX)}): ${esc(ipFinal)}</em></small></div>`
+        );
     });
 
     function procesarCalculoIP(ipValue, bitsValue, contenedor, htmlAdicional = "") {
         if (ipValue === "" || bitsValue === "") {
-            mostrarMensaje(contenedor, "Por favor, ingresa la dirección IP y los bits.", "warning"); return;
+            mostrarMensaje(contenedor, "Por favor, ingresa la dirección IP y los bits.", "warning");
+            return;
         }
 
         if (!/^\d{1,2}$/.test(bitsValue)) {
-            mostrarMensaje(contenedor, `${htmlAdicional}Los bits de red deben ser un número del 0 al 32.`, "danger"); return;
+            mostrarMensaje(contenedor, `${htmlAdicional}Los bits de red deben ser un número del 0 al 32.`, "danger");
+            return;
         }
 
         const cidr = parseInt(bitsValue, 10);
         if (!esIPv4Valida(ipValue) || cidr < 0 || cidr > 32) {
-            mostrarMensaje(contenedor, `${htmlAdicional}Formato de IP incorrecto o prefijo CIDR fuera de rango (0-32).`, "danger"); return;
+            mostrarMensaje(contenedor, `${htmlAdicional}Formato de IP incorrecto o prefijo CIDR fuera de rango (0-32).`, "danger");
+            return;
         }
 
         const ipOctetos = ipValue.split('.').map(Number);
@@ -218,11 +284,19 @@ document.addEventListener("DOMContentLoaded", () => {
         const broadcastOctetos = calcularBroadcast(redOctetos, wildcardOctetos);
 
         if (ipOctetos.join('.') === redOctetos.join('.')) {
-            let hostMinOctetos = [], hostMaxOctetos = [], numHosts = 0;
+            let hostMinOctetos = [];
+            let hostMaxOctetos = [];
+            let numHosts = 0;
 
-            if (cidr === 32) { numHosts = 1; hostMinOctetos = [...redOctetos]; hostMaxOctetos = [...redOctetos]; }
-            else if (cidr === 31) { numHosts = 2; hostMinOctetos = [...redOctetos]; hostMaxOctetos = [...broadcastOctetos]; }
-            else {
+            if (cidr === 32) {
+                numHosts = 1;
+                hostMinOctetos = [...redOctetos];
+                hostMaxOctetos = [...redOctetos];
+            } else if (cidr === 31) {
+                numHosts = 2;
+                hostMinOctetos = [...redOctetos];
+                hostMaxOctetos = [...broadcastOctetos];
+            } else {
                 numHosts = Math.pow(2, 32 - cidr) - 2;
                 hostMinOctetos = intToIp(ipToInt(redOctetos) + 1);
                 hostMaxOctetos = intToIp(ipToInt(broadcastOctetos) - 1);
@@ -236,8 +310,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 broadcast: broadcastOctetos.join('.'),
                 hosts: numHosts.toLocaleString(),
                 hostsCrudo: numHosts,
-                interfaces: [], dhcpPools: [], ripNetworks: [], dhcpHabilitado: false, ripHabilitado: false,
-                scriptGenerado: null, auditoriaLogs: []
+                interfaces: [],
+                dhcpPools: [],
+                ripNetworks: [],
+                eigrpNetworks: [],
+                eigrpAS: "",
+                dhcpHabilitado: false,
+                ripHabilitado: false,
+                eigrpHabilitado: false,
+                scriptGenerado: null,
+                auditoriaLogs: []
             };
 
             const textoParaCopiar = `Dirección: ${ipValue}\nMáscara: ${datosRedCalculada.mascara}\nPrimer host: ${datosRedCalculada.hostMin}\nÚltimo host/Gateway: ${datosRedCalculada.hostMax}\nBroadcast: ${datosRedCalculada.broadcast}\nHosts soportados: ${datosRedCalculada.hosts}`;
@@ -275,10 +357,15 @@ document.addEventListener("DOMContentLoaded", () => {
             contenedor.querySelector('.btn-guardar-nodo').addEventListener('click', () => {
                 if (!guardEdit()) return;
                 const clienteNombre = contenedor.querySelector('.input-cliente').value.trim();
-                if (clienteNombre === "") { alert("Por favor, ingresa un nombre."); return; }
-                
+
+                if (clienteNombre === "") {
+                    alert("Por favor, ingresa un nombre.");
+                    return;
+                }
+
                 if (listaNodos.some(n => n.cliente.toLowerCase() === clienteNombre.toLowerCase())) {
-                    alert(`El nodo "${clienteNombre}" ya existe en la lista.`); return;
+                    alert(`El nodo "${clienteNombre}" ya existe en la lista.`);
+                    return;
                 }
 
                 guardarNodoLista(clienteNombre, JSON.parse(JSON.stringify(datosRedCalculada)));
@@ -286,11 +373,20 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
         } else {
-            mostrarMensaje(contenedor, `${htmlAdicional}<h5 class="alert-heading mt-2">Dirección Inválida</h5><p>La dirección <strong>${esc(ipValue)}/${cidr}</strong> contiene bits de host activos.</p><hr><p class="mb-0">Dirección de red base correcta: <strong>${redOctetos.join('.')}</strong></p>`, "danger");
+            mostrarMensaje(
+                contenedor,
+                `${htmlAdicional}<h5 class="alert-heading mt-2">Dirección Inválida</h5>
+                <p>La dirección <strong>${esc(ipValue)}/${cidr}</strong> contiene bits de host activos.</p>
+                <hr>
+                <p class="mb-0">Dirección de red base correcta: <strong>${redOctetos.join('.')}</strong></p>`,
+                "danger"
+            );
         }
     }
 
-    // --- Módulo Matemático de Auditoría IP ---
+    // ==========================================
+    // 6. MOTOR DE AUDITORÍA IP
+    // ==========================================
     function auditarNodo(nodo) {
         const logs = [];
         const redesInterfaces = [];
@@ -298,7 +394,10 @@ document.addEventListener("DOMContentLoaded", () => {
         let usaRedDelNodo = false;
 
         const nodoNetIp = nodo.direccion.split('/')[0];
-        let nodoNetInt = 0, nodoMaskInt = 0, nodoAuditable = true;
+        let nodoNetInt = 0;
+        let nodoMaskInt = 0;
+        let nodoAuditable = true;
+
         if (!nodoNetIp || !esIPv4Valida(nodoNetIp) || !esMascaraValida(nodo.mascara)) {
             logs.push({ tipo: 'danger', texto: `El nodo carece de una red principal válida configurada. Auditoría parcial.` });
             nodoAuditable = false;
@@ -311,8 +410,19 @@ document.addEventListener("DOMContentLoaded", () => {
             logs.push({ tipo: 'warning', texto: `El nodo no tiene interfaces configuradas.` });
         }
 
+        const ipsOtrosNodos = new Map();
+        listaNodos.forEach(otro => {
+            if (otro === nodo) return;
+            otro.interfaces.forEach(i => {
+                if (i.ip && !ipsOtrosNodos.has(i.ip)) {
+                    ipsOtrosNodos.set(i.ip, `${otro.cliente} (${i.nombre.toUpperCase()})`);
+                }
+            });
+        });
+
         nodo.interfaces.forEach(intf => {
             const nombre = intf.nombre.toUpperCase();
+            const esLoopback = intf.nombre.toLowerCase().startsWith('lo');
 
             if (!intf.ip || !intf.mascara) {
                 logs.push({ tipo: 'danger', texto: `Puerto ${nombre}: Falta configurar IP y máscara.` });
@@ -323,6 +433,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     logs.push({ tipo: 'danger', texto: `Puerto ${nombre}: IP duplicada (${intf.ip}) en este mismo dispositivo.` });
                 }
                 ipsAsignadas.add(intf.ip);
+
+                if (ipsOtrosNodos.has(intf.ip)) {
+                    logs.push({ tipo: 'warning', texto: `Puerto ${nombre}: la IP ${intf.ip} también está asignada en ${ipsOtrosNodos.get(intf.ip)}.` });
+                }
 
                 const ipOct = intf.ip.split('.').map(Number);
                 const maskOct = intf.mascara.split('.').map(Number);
@@ -348,9 +462,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 const bcastOct = calcularBroadcast(redOct, maskOct.map(m => 255 - m));
                 const ipStr = ipOct.join('.');
-                
+
                 if (prefijo === 32) {
-                    logs.push({ tipo: 'warning', texto: `Puerto ${nombre}: la IP ${intf.ip} usa /32. Válido solo en interfaces lógicas (Loopbacks).` });
+                    if (esLoopback) {
+                        logs.push({ tipo: 'success', texto: `Puerto ${nombre}: IP ${intf.ip} con /32 en Loopback, válida.` });
+                    } else {
+                        logs.push({ tipo: 'warning', texto: `Puerto ${nombre}: la IP ${intf.ip} usa /32. Válido solo en interfaces lógicas (Loopbacks).` });
+                    }
                 } else if (prefijo === 31) {
                     logs.push({ tipo: 'success', texto: `Puerto ${nombre}: IP ${intf.ip} en enlace p2p /31 (RFC 3021), válida.` });
                 } else if (ipStr === netStr) {
@@ -373,9 +491,11 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 nodo.dhcpPools.forEach(pool => {
                     if (!pool || !pool.red || !pool.mascara || !esIPv4Valida(pool.red) || !esMascaraValida(pool.mascara)) {
-                        logs.push({ tipo: 'danger', texto: `DHCP [${esc(pool?.nombre || 'sin-nombre')}]: red o máscara corrupta o faltante.` });
+                        // CORREGIDO: sin esc() aquí; el render ya escapa el texto (evitaba doble escape)
+                        logs.push({ tipo: 'danger', texto: `DHCP [${pool?.nombre || 'sin-nombre'}]: red o máscara corrupta o faltante.` });
                         return;
                     }
+
                     const netOct = pool.red.split('.').map(Number);
                     const maskOct = pool.mascara.split('.').map(Number);
                     const calcRedOct = calcularRed(netOct, maskOct);
@@ -385,12 +505,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     } else {
                         logs.push({ tipo: 'success', texto: `DHCP [${pool.nombre}]: Dirección de red y máscara congruentes.` });
                     }
-                    
+
                     const poolNetInt = ipToInt(netOct);
                     let tieneInterfaz = false;
                     for (let r of redesInterfaces) {
                         if (r.ipInt !== 0 && ((r.ipInt & ipToInt(maskOct)) >>> 0) === poolNetInt) {
-                            tieneInterfaz = true; break;
+                            tieneInterfaz = true;
+                            break;
                         }
                     }
                     if (!tieneInterfaz && nodo.interfaces.length > 0) {
@@ -399,24 +520,65 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
             }
         }
-        
+
         if (nodo.ripHabilitado && nodo.ripNetworks.length > 0) {
             nodo.ripNetworks.forEach(net => {
+                if (!esIPv4Valida(net)) {
+                    logs.push({ tipo: 'danger', texto: `RIP: La red almacenada (${net}) no es una IPv4 válida.` });
+                    return;
+                }
                 const oct = net.split('.').map(Number);
-                const cls = oct[0] < 128 ? 8 : (oct[0] < 192 ? 16 : 24);
-                const maskCls = calcularMascara(cls);
-                const redCalc = calcularRed(oct, maskCls);
-                // [Polished: Ajuste pedagógico para redes VLSM en RIPv2]
-                if (oct.join('.') !== redCalc.join('.')) {
-                    logs.push({ tipo: 'warning', texto: `RIP: La red ${net} es una subred (VLSM). Verifica que sea la deseada, IOS podría resumirla a ${redCalc.join('.')} si falta 'no auto-summary'.` });
+                let clsNet = net;
+
+                if (oct[0] >= 1 && oct[0] <= 126) clsNet = `${oct[0]}.0.0.0`;
+                else if (oct[0] >= 128 && oct[0] <= 191) clsNet = `${oct[0]}.${oct[1]}.0.0`;
+                else if (oct[0] >= 192 && oct[0] <= 223) clsNet = `${oct[0]}.${oct[1]}.${oct[2]}.0`;
+
+                if (net !== clsNet) {
+                    logs.push({ tipo: 'warning', texto: `RIP: La red almacenada (${net}) no es classful. El IOS de Cisco podría interpretarla incorrectamente.` });
                 }
             });
+        }
+
+        if (nodo.eigrpHabilitado) {
+            const asTexto = String(nodo.eigrpAS ?? "");
+            const asNum = parseInt(asTexto, 10);
+
+            if (!/^\d+$/.test(asTexto) || asNum < 1 || asNum > 65535) {
+                logs.push({ tipo: 'danger', texto: `EIGRP: Falta un número de Sistema Autónomo válido (1-65535). No se generará el bloque 'router eigrp'.` });
+            }
+
+            if (nodo.eigrpNetworks.length === 0) {
+                logs.push({ tipo: 'warning', texto: `EIGRP habilitado pero sin redes configuradas.` });
+            } else {
+                nodo.eigrpNetworks.forEach(e => {
+                    if (!esIPv4Valida(e.red) || !esMascaraValida(e.mascara)) {
+                        logs.push({ tipo: 'danger', texto: `EIGRP [${e.red}]: red o máscara corrupta o faltante.` });
+                        return;
+                    }
+
+                    const maskOct = e.mascara.split('.').map(Number);
+                    const maskInt = ipToInt(maskOct);
+                    const netInt = (ipToInt(e.red.split('.').map(Number)) & maskInt) >>> 0;
+                    const prefijo = contarBitsMascara(maskOct);
+
+                    const cubreInterfaz = redesInterfaces.some(r => ((r.ipInt & maskInt) >>> 0) === netInt);
+
+                    if (cubreInterfaz) {
+                        logs.push({ tipo: 'success', texto: `EIGRP: network ${e.red} ${e.wildcard} (/${prefijo}) cubre al menos una interfaz del router.` });
+                    } else if (nodo.interfaces.length > 0) {
+                        logs.push({ tipo: 'warning', texto: `EIGRP: Ninguna interfaz configurada pertenece a ${e.red}/${prefijo}; esa red no se anunciará.` });
+                    }
+                });
+            }
         }
 
         return logs;
     }
 
-    // --- Tabla Maestra de Nodos ---
+    // ==========================================
+    // 7. RENDERIZADO Y GESTIÓN DE TABLA
+    // ==========================================
     function guardarNodoLista(cliente, datosRed) {
         listaNodos.push(normalizarNodo({ cliente, ...datosRed }));
         historialBorrados.length = 0;
@@ -425,9 +587,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderizarTabla() {
         btnDeshacer.style.display = historialBorrados.length > 0 ? "inline-block" : "none";
-        
-        if (listaNodos.length > 0 || historialBorrados.length > 0) seccionTabla.style.display = "flex";
-        else { seccionTabla.style.display = "none"; nodoSeleccionadoIndex = null; }
+
+        if (listaNodos.length > 0 || historialBorrados.length > 0) {
+            seccionTabla.style.display = "flex";
+        } else {
+            seccionTabla.style.display = "none";
+            nodoSeleccionadoIndex = null;
+        }
 
         if (listaNodos.length === 0 && historialBorrados.length > 0) {
             tablaNodosBody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-3">Todos los nodos eliminados. Puedes deshacer la acción.</td></tr>`;
@@ -450,19 +616,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 `;
             }).join('');
         }
-        
+
         renderizarConfiguracion();
         renderizarMenuNodo();
         renderizarDhcpPools();
         renderizarRipNetworks();
+        renderizarEigrpNetworks();
         renderizarResumenNodos();
         guardarDatosStorage();
     }
 
-    // --- Configuración de Interfaces ---
+    // ==========================================
+    // 8. PANEL DE INTERFACES Y MENÚ DEL NODO
+    // ==========================================
     function renderizarConfiguracion() {
         if (nodoSeleccionadoIndex === null || !listaNodos[nodoSeleccionadoIndex]) {
-            seccionConfiguracion.style.display = "none"; intfEditIndex = null; return;
+            seccionConfiguracion.style.display = "none";
+            intfEditIndex = null;
+            return;
         }
 
         const nodo = listaNodos[nodoSeleccionadoIndex];
@@ -473,9 +644,11 @@ document.addEventListener("DOMContentLoaded", () => {
             listaInterfaces.innerHTML = `<li class="list-group-item text-center text-muted fst-italic py-3">No hay interfaces conectadas.</li>`;
         } else {
             listaInterfaces.innerHTML = nodo.interfaces.map((intf, index) => {
+                // Modo Edición
                 if (index === intfEditIndex) {
                     const esSerial = intf.nombre.toLowerCase().startsWith('s');
                     let htmlClock = "";
+
                     if (esSerial) {
                         htmlClock = `
                         <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 mt-2 border-top pt-3">
@@ -514,9 +687,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     </li>`;
                 }
 
+                // Modo Vista
                 const esSerial = intf.nombre.toLowerCase().startsWith('s');
                 const clockBadge = (esSerial && intf.clockRate) ? `<span class="badge bg-warning text-dark ms-2 border border-secondary" style="font-size: 0.65rem;">⏱ CLOCK: ${esc(intf.clockRateValue)}</span>` : '';
                 const helperBadge = intf.helper ? `<span class="badge bg-info text-dark ms-2 border border-secondary" style="font-size: 0.65rem;">HELPER: ${esc(intf.helper)}</span>` : '';
+
                 const estadoConfig = (intf.ip && intf.mascara)
                     ? `<div class="text-muted font-monospace mt-1" style="font-size: 0.85rem;">IP: <span class="text-dark fw-bold">${esc(intf.ip)}</span> | Mask: <span class="text-dark fw-bold">${esc(intf.mascara)}</span></div>`
                     : `<div class="text-danger fst-italic mt-1" style="font-size: 0.80rem;">⚠️ Falta configurar red y máscara</div>`;
@@ -542,29 +717,54 @@ document.addEventListener("DOMContentLoaded", () => {
     function agregarInterfazHandler() {
         if (!guardEdit()) return;
         const nodo = nodoActual();
-        if (!nodo) { alert("Selecciona un nodo primero."); return; }
+
+        if (!nodo) {
+            alert("Selecciona un nodo primero.");
+            return;
+        }
+
         const valorIntf = inputInterfaz.value.trim().toLowerCase();
-        
         if (valorIntf === "") return;
 
-        if (!/^[fgs]\d+\/\d+(\/\d+)?$/.test(valorIntf)) { alert("Formato inválido. Usa f, g o s. Ej: f0/0, g0/1/0, s0/0"); return; }
-        if (nodo.interfaces.some(intf => intf.nombre === valorIntf)) { alert(`La interfaz ya existe.`); return; }
+        if (!/^(?:[fgs]\d+\/\d+(?:\/\d+)?|lo\d+)$/.test(valorIntf)) {
+            alert("Formato inválido. Usa f, g, s o lo. Ej: f0/0, g0/1/0, s0/0, lo0");
+            return;
+        }
 
-        nodo.interfaces.push({ nombre: valorIntf, ip: null, mascara: null, clockRate: false, clockRateValue: null, helper: null });
+        if (nodo.interfaces.some(intf => intf.nombre === valorIntf)) {
+            alert(`La interfaz ya existe.`);
+            return;
+        }
+
+        nodo.interfaces.push({
+            nombre: valorIntf,
+            ip: null,
+            mascara: null,
+            clockRate: false,
+            clockRateValue: null,
+            helper: null
+        });
+
         invalidarScript(nodo);
         inputInterfaz.value = "";
         renderizarTabla();
     }
 
     btnAgregarInterfaz.addEventListener("click", agregarInterfazHandler);
-    inputInterfaz.addEventListener("keypress", function (event) {
-        if (event.key === "Enter") { event.preventDefault(); agregarInterfazHandler(); }
+
+    inputInterfaz.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            agregarInterfazHandler();
+        }
     });
 
+    // Control dinámico de checkboxes
     listaInterfaces.addEventListener("change", function (event) {
         if (event.target.classList.contains("check-clock-rate")) {
             const index = parseInt(event.target.getAttribute("data-index"), 10);
             const inputContainer = document.getElementById(`containerClockValue_${index}`);
+
             if (inputContainer) {
                 inputContainer.style.display = event.target.checked ? "block" : "none";
                 if (!event.target.checked) {
@@ -593,7 +793,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (event.target.classList.contains("btn-cancelar-inline")) {
-            intfEditIndex = null; renderizarTabla();
+            intfEditIndex = null;
+            renderizarTabla();
         }
 
         if (event.target.classList.contains("btn-guardar-inline")) {
@@ -604,13 +805,13 @@ document.addEventListener("DOMContentLoaded", () => {
             const inputIp = document.getElementById(`inlineIp_${index}`).value.trim();
             const inputMask = document.getElementById(`inlineMask_${index}`).value.trim();
             const inputHelper = document.getElementById(`inlineHelper_${index}`).value.trim();
-            
+
             const checkClockElement = document.getElementById(`inlineCheckClock_${index}`);
             const checkClock = (esSerial && checkClockElement) ? checkClockElement.checked : false;
             const inputClockVal = checkClock ? document.getElementById(`inlineClockValue_${index}`).value.trim() : null;
 
             if (inputIp === "" || inputMask === "") { alert("Por favor, ingresa la IP y la Máscara."); return; }
-            if (!esIPv4Valida(inputIp)) { alert("La Dirección IP ingresada no es válida."); return; }
+            if (!esIPv4Valida(inputIp)) { alert("La Dirección IP ingresada no es válida (sin ceros a la izquierda)."); return; }
             if (!esMascaraValida(inputMask)) { alert("La Máscara ingresada no es válida (bits contiguos)."); return; }
             if (inputHelper !== "" && !esIPv4Valida(inputHelper)) { alert("La dirección Helper IP no es válida."); return; }
             if (checkClock && inputClockVal === "") { alert("Ingresa el valor del Clock Rate."); return; }
@@ -629,51 +830,95 @@ document.addEventListener("DOMContentLoaded", () => {
 
     btnCerrarConfiguracion.addEventListener("click", () => {
         if (!guardEdit()) return;
-        nodoSeleccionadoIndex = null; renderizarTabla();
+        nodoSeleccionadoIndex = null;
+        renderizarTabla();
     });
 
-    // --- Panel Menú Nodo ---
+    // ==========================================
+    // 9. PANEL DHCP, RIPv2 Y EIGRP
+    // ==========================================
+    function esAsValido(v) {
+        return /^\d+$/.test(String(v ?? "")) && Number(v) >= 1 && Number(v) <= 65535;
+    }
+
     function renderizarMenuNodo() {
         if (nodoSeleccionadoIndex === null || !listaNodos[nodoSeleccionadoIndex]) {
-            seccionMenuNodo.style.display = "none"; seccionRouter.style.display = "none"; panelAuditoria.style.display = "none"; return;
+            seccionMenuNodo.style.display = "none";
+            seccionRouter.style.display = "none";
+            panelAuditoria.style.display = "none";
+            return;
         }
+
         const nodo = listaNodos[nodoSeleccionadoIndex];
         seccionMenuNodo.style.display = "flex";
         nombreNodoMenu.textContent = nodo.cliente;
+
         checkHabilitarDhcp.checked = !!nodo.dhcpHabilitado;
         formularioDhcp.style.display = nodo.dhcpHabilitado ? "block" : "none";
+
         checkHabilitarRip.checked = !!nodo.ripHabilitado;
         formularioRip.style.display = nodo.ripHabilitado ? "block" : "none";
+
+        checkHabilitarEigrp.checked = !!nodo.eigrpHabilitado;
+        formularioEigrp.style.display = nodo.eigrpHabilitado ? "block" : "none";
+
+        // Solo se reescribe el campo si difiere (evita mover el cursor mientras se escribe)
+        if (eigrpAsInput.value !== String(nodo.eigrpAS ?? "")) {
+            eigrpAsInput.value = nodo.eigrpAS ?? "";
+        }
+        const asTexto = String(nodo.eigrpAS ?? "");
+        eigrpAsInput.classList.toggle("is-invalid", asTexto !== "" && !esAsValido(asTexto));
     }
 
     btnOpcionRouter.addEventListener("click", () => {
-        seccionRouter.style.display = "flex"; seccionRouter.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        seccionRouter.style.display = "flex";
+        seccionRouter.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-    btnCerrarRouter.addEventListener("click", () => { seccionRouter.style.display = "none"; });
+
+    btnCerrarRouter.addEventListener("click", () => {
+        seccionRouter.style.display = "none";
+    });
 
     checkHabilitarDhcp.addEventListener("change", function () {
         if (!guardEdit()) { this.checked = !this.checked; return; }
         const nodo = nodoActual(); if (!nodo) return;
-        nodo.dhcpHabilitado = this.checked; invalidarScript(nodo); renderizarTabla();
+        nodo.dhcpHabilitado = this.checked;
+        invalidarScript(nodo);
+        renderizarTabla();
     });
 
     checkHabilitarRip.addEventListener("change", function () {
         if (!guardEdit()) { this.checked = !this.checked; return; }
         const nodo = nodoActual(); if (!nodo) return;
-        nodo.ripHabilitado = this.checked; invalidarScript(nodo); renderizarTabla();
+        nodo.ripHabilitado = this.checked;
+        invalidarScript(nodo);
+        renderizarTabla();
     });
 
-    // --- DHCP ---
+    checkHabilitarEigrp.addEventListener("change", function () {
+        if (!guardEdit()) { this.checked = !this.checked; return; }
+        const nodo = nodoActual(); if (!nodo) return;
+        nodo.eigrpHabilitado = this.checked;
+        invalidarScript(nodo);
+        renderizarTabla();
+    });
+
+    // --- Funciones DHCP ---
     function renderizarDhcpPools() {
         if (nodoSeleccionadoIndex === null || !listaNodos[nodoSeleccionadoIndex]) {
             listaDhcpPools.innerHTML = ""; return;
         }
+
         const nodo = listaNodos[nodoSeleccionadoIndex];
-        if (nodo.dhcpPools.length === 0) listaDhcpPools.innerHTML = `<li class="list-group-item text-muted small py-2">No hay pools configurados.</li>`;
-        else {
+        if (nodo.dhcpPools.length === 0) {
+            listaDhcpPools.innerHTML = `<li class="list-group-item text-muted small py-2">No hay pools configurados.</li>`;
+        } else {
             listaDhcpPools.innerHTML = nodo.dhcpPools.map((pool, index) => `
                 <li class="list-group-item d-flex justify-content-between py-2 px-3 mb-2 border border-success rounded">
-                    <div><div class="fw-bold text-success">${esc(pool.nombre)}</div><div class="text-muted font-monospace" style="font-size:0.75rem;">Red: ${esc(pool.red)} | Mask: ${esc(pool.mascara)}</div></div>
+                    <div>
+                        <div class="fw-bold text-success">${esc(pool.nombre)}</div>
+                        <div class="text-muted font-monospace" style="font-size:0.75rem;">Red: ${esc(pool.red)} | Mask: ${esc(pool.mascara)}</div>
+                    </div>
                     <button class="btn btn-sm btn-outline-danger fw-bold btn-quitar-dhcp" data-dhcp-index="${index}">X</button>
                 </li>
             `).join('');
@@ -695,33 +940,66 @@ document.addEventListener("DOMContentLoaded", () => {
         if (/\s/.test(pool)) { alert("El nombre del pool no debe contener espacios."); return; }
         if (!esIPv4Valida(net)) { alert("La IP de Red es inválida."); return; }
         if (!esMascaraValida(mask)) { alert("La Máscara no es válida."); return; }
-        
+
         const poolNetInt = ipToInt(net.split('.').map(Number));
         const poolMaskInt = ipToInt(mask.split('.').map(Number));
 
+        if (((poolNetInt & poolMaskInt) >>> 0) !== poolNetInt) {
+            const sugerida = intToIp((poolNetInt & poolMaskInt) >>> 0).join('.');
+            alert(`La red ${net} no coincide con la máscara ${mask}. La dirección de red correcta sería ${sugerida}.`);
+            return;
+        }
+
+        const poolBcastInt = (poolNetInt | (~poolMaskInt >>> 0)) >>> 0;
+        const poolPrefijo = contarBitsMascara(mask.split('.').map(Number));
+
         if (gw !== "") {
             if (!esIPv4Valida(gw)) { alert("El Gateway es inválido."); return; }
-            if (((ipToInt(gw.split('.').map(Number)) & poolMaskInt) >>> 0) !== poolNetInt) {
+            const gwInt = ipToInt(gw.split('.').map(Number));
+            if (((gwInt & poolMaskInt) >>> 0) !== poolNetInt) {
                 alert("El Gateway no pertenece a la red del DHCP."); return;
             }
+            if (poolPrefijo < 31 && (gwInt === poolNetInt || gwInt === poolBcastInt)) {
+                alert("El Gateway no puede ser la dirección de red ni la de broadcast."); return;
+            }
         }
+
         if (dns !== "" && !esIPv4Valida(dns)) { alert("El DNS es inválido."); return; }
 
         if (exc !== "") {
-            const ipsExcluidas = exc.split(/[\s,]+/).filter(i => i.trim() !== "");
-            for (let i of ipsExcluidas) {
-                if (!esIPv4Valida(i)) { alert(`IP a excluir "${i}" es inválida.`); return; }
-                if (((ipToInt(i.split('.').map(Number)) & poolMaskInt) >>> 0) !== poolNetInt) {
-                    alert(`La IP a excluir "${i}" no pertenece a la red del DHCP.`); return;
+            const grupos = exc.split(',').map(g => g.trim()).filter(g => g !== "");
+            for (let g of grupos) {
+                const ips = g.split(/[\s\-]+/).filter(i => i !== "");
+                if (ips.length > 2) {
+                    alert(`El rango excluido "${g}" es inválido. Usa una sola IP o un rango de dos IPs separadas por espacio. Usa comas para múltiples reglas.`);
+                    return;
+                }
+                for (let i of ips) {
+                    if (!esIPv4Valida(i)) { alert(`La IP a excluir "${i}" es inválida.`); return; }
+                    if (((ipToInt(i.split('.').map(Number)) & poolMaskInt) >>> 0) !== poolNetInt) {
+                        alert(`La IP a excluir "${i}" no pertenece a la red del DHCP.`); return;
+                    }
+                }
+                if (ips.length === 2 && ipToInt(ips[0].split('.').map(Number)) > ipToInt(ips[1].split('.').map(Number))) {
+                    alert(`El rango "${g}" tiene la IP de inicio mayor que la de fin.`);
+                    return;
                 }
             }
         }
 
         if (nodo.dhcpPools.some(p => p.nombre.toLowerCase() === pool.toLowerCase())) { alert("El Pool ya existe."); return; }
 
-        nodo.dhcpPools.push({ nombre: pool, excluidas: exc !== "" ? exc : null, red: net, mascara: mask, gateway: gw || null, dns: dns || null });
+        nodo.dhcpPools.push({
+            nombre: pool,
+            excluidas: exc !== "" ? exc : null,
+            red: net,
+            mascara: mask,
+            gateway: gw || null,
+            dns: dns || null
+        });
+
         invalidarScript(nodo);
-        dhcpPoolName.value = ""; dhcpExcluidas.value = ""; dhcpRed.value = ""; dhcpMascara.value = ""; dhcpGateway.value = ""; dhcpDns.value = "";
+        limpiarFormularioDhcp();
         renderizarTabla();
     });
 
@@ -730,18 +1008,21 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!guardEdit()) return;
             const nodo = nodoActual(); if (!nodo) return;
             nodo.dhcpPools.splice(parseInt(event.target.getAttribute("data-dhcp-index"), 10), 1);
-            invalidarScript(nodo); renderizarTabla();
+            invalidarScript(nodo);
+            renderizarTabla();
         }
     });
 
-    // --- RIPv2 ---
+    // --- Funciones RIPv2 ---
     function renderizarRipNetworks() {
         if (nodoSeleccionadoIndex === null || !listaNodos[nodoSeleccionadoIndex]) {
             listaRipNetworks.innerHTML = ""; return;
         }
+
         const nodo = listaNodos[nodoSeleccionadoIndex];
-        if (nodo.ripNetworks.length === 0) listaRipNetworks.innerHTML = `<li class="list-group-item text-muted small py-2">No hay redes agregadas.</li>`;
-        else {
+        if (nodo.ripNetworks.length === 0) {
+            listaRipNetworks.innerHTML = `<li class="list-group-item text-muted small py-2">No hay redes agregadas.</li>`;
+        } else {
             listaRipNetworks.innerHTML = nodo.ripNetworks.map((net, index) => `
                 <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2 mb-1 border rounded shadow-sm">
                     <span class="font-monospace text-dark fw-bold">${esc(net)}</span>
@@ -755,10 +1036,33 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!guardEdit()) return;
         const nodo = nodoActual(); if (!nodo) return;
         const net = ripNetworkInput.value.trim();
-        if (!esIPv4Valida(net)) { alert("Dirección de red inválida."); return; }
-        if (nodo.ripNetworks.includes(net)) { alert("Esta red ya está en la lista."); return; }
-        nodo.ripNetworks.push(net);
-        invalidarScript(nodo); ripNetworkInput.value = ""; renderizarTabla();
+
+        if (!esIPv4Valida(net)) { alert("Dirección IP inválida para RIP."); return; }
+
+        const oct = net.split('.').map(Number);
+        let classfulNet = net;
+
+        if (oct[0] >= 1 && oct[0] <= 126) {
+            classfulNet = `${oct[0]}.0.0.0`;
+        } else if (oct[0] >= 128 && oct[0] <= 191) {
+            classfulNet = `${oct[0]}.${oct[1]}.0.0`;
+        } else if (oct[0] >= 192 && oct[0] <= 223) {
+            classfulNet = `${oct[0]}.${oct[1]}.${oct[2]}.0`;
+        } else {
+            alert("La IP no pertenece a una Clase A, B o C comercial, requeridas para routing RIP.");
+            return;
+        }
+
+        if (nodo.ripNetworks.includes(classfulNet)) { alert("Esta red classful ya está en la lista."); return; }
+
+        if (net !== classfulNet) {
+            alert(`Nota (IOS Cisco): El protocolo RIPv2 ajustó automáticamente tu IP a su dirección base con clase (${classfulNet}).`);
+        }
+
+        nodo.ripNetworks.push(classfulNet);
+        invalidarScript(nodo);
+        ripNetworkInput.value = "";
+        renderizarTabla();
     });
 
     listaRipNetworks.addEventListener("click", function (event) {
@@ -766,11 +1070,108 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!guardEdit()) return;
             const nodo = nodoActual(); if (!nodo) return;
             nodo.ripNetworks.splice(parseInt(event.target.getAttribute("data-rip-index"), 10), 1);
-            invalidarScript(nodo); renderizarTabla();
+            invalidarScript(nodo);
+            renderizarTabla();
         }
     });
 
-    // --- Generación Script y Auditoría ---
+    // --- Funciones EIGRP ---
+    function renderizarEigrpNetworks() {
+        if (nodoSeleccionadoIndex === null || !listaNodos[nodoSeleccionadoIndex]) {
+            listaEigrpNetworks.innerHTML = ""; return;
+        }
+
+        const nodo = listaNodos[nodoSeleccionadoIndex];
+        if (nodo.eigrpNetworks.length === 0) {
+            listaEigrpNetworks.innerHTML = `<li class="list-group-item text-muted small py-2">No hay redes agregadas.</li>`;
+        } else {
+            listaEigrpNetworks.innerHTML = nodo.eigrpNetworks.map((e, index) => `
+                <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-2 mb-1 border rounded shadow-sm">
+                    <div class="font-monospace" style="font-size: 0.85rem;">
+                        <span class="text-dark fw-bold">${esc(e.red)}</span>
+                        <span class="text-success fw-bold ms-2">${esc(e.wildcard)}</span>
+                        <div class="text-muted" style="font-size: 0.72rem;">Máscara: ${esc(e.mascara)}</div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger fw-bold btn-quitar-eigrp" data-eigrp-index="${index}">X</button>
+                </li>
+            `).join('');
+        }
+    }
+
+    function actualizarWildcardEigrp() {
+        const m = eigrpMascaraInput.value.trim();
+        if (m !== "" && esMascaraValida(m)) {
+            eigrpWildcardInput.value = calcularWildcard(m.split('.').map(Number)).join('.');
+            eigrpMascaraInput.classList.remove("is-invalid");
+        } else {
+            eigrpWildcardInput.value = "";
+            eigrpMascaraInput.classList.toggle("is-invalid", m !== "");
+        }
+    }
+    eigrpMascaraInput.addEventListener("input", actualizarWildcardEigrp);
+
+    // CORREGIDO: se guarda siempre el texto; la validez se marca en rojo y la audita auditarNodo()
+    eigrpAsInput.addEventListener("input", function () {
+        const nodo = nodoActual(); if (!nodo) return;
+        const v = this.value.trim();
+        nodo.eigrpAS = v;
+        this.classList.toggle("is-invalid", v !== "" && !esAsValido(v));
+        invalidarScript(nodo);
+        renderizarTabla();
+    });
+
+    btnAgregarEigrpNetwork.addEventListener("click", () => {
+        if (!guardEdit()) return;
+        const nodo = nodoActual(); if (!nodo) return;
+
+        const red = eigrpRedInput.value.trim();
+        const mask = eigrpMascaraInput.value.trim();
+
+        if (red === "" || mask === "") { alert("Debes ingresar la IP de Red y la Máscara."); return; }
+        if (!esIPv4Valida(red)) { alert("Dirección IP inválida para EIGRP."); return; }
+        if (!esMascaraValida(mask)) { alert("Máscara inválida (deben ser bits contiguos). Usa la máscara normal, no la wildcard."); return; }
+
+        const maskOct = mask.split('.').map(Number);
+        const netInt = ipToInt(red.split('.').map(Number));
+        const maskInt = ipToInt(maskOct);
+        if (((netInt & maskInt) >>> 0) !== netInt) {
+            const sugerida = intToIp((netInt & maskInt) >>> 0).join('.');
+            alert(`La IP ${red} no es una dirección de red válida para esa máscara. ¿Quisiste decir ${sugerida}?`);
+            return;
+        }
+
+        if (nodo.eigrpNetworks.some(e => e.red === red && e.mascara === mask)) {
+            alert("Esta red ya está en la lista.");
+            return;
+        }
+
+        // CORREGIDO: la wildcard se calcula aquí, sin depender del campo de solo lectura
+        const wild = calcularWildcard(maskOct).join('.');
+
+        nodo.eigrpNetworks.push({ red: red, mascara: mask, wildcard: wild });
+        invalidarScript(nodo);
+
+        eigrpRedInput.value = "";
+        eigrpMascaraInput.value = "";
+        eigrpWildcardInput.value = "";
+        eigrpMascaraInput.classList.remove("is-invalid");
+
+        renderizarTabla();
+    });
+
+    listaEigrpNetworks.addEventListener("click", function (event) {
+        if (event.target.classList.contains("btn-quitar-eigrp")) {
+            if (!guardEdit()) return;
+            const nodo = nodoActual(); if (!nodo) return;
+            nodo.eigrpNetworks.splice(parseInt(event.target.getAttribute("data-eigrp-index"), 10), 1);
+            invalidarScript(nodo);
+            renderizarTabla();
+        }
+    });
+
+    // ==========================================
+    // 10. GENERACIÓN DE CÓDIGO (ROUTER CLI)
+    // ==========================================
     btnGenerarConfigRouter.addEventListener("click", () => {
         if (!guardEdit()) return;
         const nodo = nodoActual(); if (!nodo) return;
@@ -791,8 +1192,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (nodo.dhcpHabilitado && nodo.dhcpPools.length > 0) {
             nodo.dhcpPools.forEach(pool => {
                 if (pool.excluidas) {
-                    const ipsExcluidas = pool.excluidas.split(/[\s,]+/).filter(i => i.trim() !== "");
-                    ipsExcluidas.forEach(ip => cli += `ip dhcp excluded-address ${ip}\n`);
+                    const grupos = pool.excluidas.split(',').map(g => g.trim()).filter(g => g !== "");
+                    grupos.forEach(g => {
+                        const ips = g.split(/[\s\-]+/).filter(i => i !== "");
+                        cli += `ip dhcp excluded-address ${ips.join(' ')}\n`;
+                    });
                 }
                 cli += `ip dhcp pool ${pool.nombre}\nnetwork ${pool.red} ${pool.mascara}\n`;
                 if (pool.gateway) cli += `default-router ${pool.gateway}\n`;
@@ -807,14 +1211,23 @@ document.addEventListener("DOMContentLoaded", () => {
             cli += `exit\n`;
         }
 
+        if (nodo.eigrpHabilitado && nodo.eigrpNetworks.length > 0 && esAsValido(nodo.eigrpAS)) {
+            cli += `router eigrp ${parseInt(nodo.eigrpAS, 10)}\nno auto-summary\n`;
+            nodo.eigrpNetworks.forEach(e => cli += `network ${e.red} ${e.wildcard}\n`);
+            cli += `exit\n`;
+        }
+
         if (nodo.interfaces.length > 0) {
             nodo.interfaces.forEach(intf => {
-                let nombreCompleto = intf.nombre.startsWith('f') ? intf.nombre.replace('f', 'fastEthernet ') :
+                let nombreCompleto = intf.nombre.startsWith('lo') ? intf.nombre.replace('lo', 'loopback ') :
+                                     intf.nombre.startsWith('f') ? intf.nombre.replace('f', 'fastEthernet ') :
                                      intf.nombre.startsWith('g') ? intf.nombre.replace('g', 'gigabitEthernet ') :
                                      intf.nombre.startsWith('s') ? intf.nombre.replace('s', 'serial ') : intf.nombre;
+
                 cli += `interface ${nombreCompleto}\n`;
                 if (intf.ip && intf.mascara) cli += `ip address ${intf.ip} ${intf.mascara}\n`;
                 if (intf.helper) cli += `ip helper-address ${intf.helper}\n`;
+
                 const esSerial = intf.nombre.toLowerCase().startsWith('s');
                 if (esSerial && intf.clockRate && intf.clockRateValue) cli += `clock rate ${intf.clockRateValue}\n`;
                 cli += `no shutdown\nexit\n`;
@@ -840,6 +1253,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // ==========================================
+    // 11. PANEL INFERIOR (RESUMEN ACORDEÓN)
+    // ==========================================
     function renderizarResumenNodos() {
         const nodosConfigurados = listaNodos.filter(n => n.scriptGenerado);
         if (nodosConfigurados.length > 0) seccionResumenNodos.style.display = "flex";
@@ -850,25 +1266,39 @@ document.addEventListener("DOMContentLoaded", () => {
             const semaforoBadge = nodo.auditoriaLogs.some(l => l.tipo === 'danger') ? `<span class="badge bg-danger ms-2">🔴 Error IP</span>` : `<span class="badge bg-success ms-2">🟢 OK IP</span>`;
 
             const desgloseIntf = nodo.interfaces.length > 0 ? nodo.interfaces.map(intf => `<li class="list-group-item py-1 px-2 d-flex justify-content-between"><span class="fw-bold">${esc(intf.nombre.toUpperCase())}</span><span class="font-monospace text-muted">${intf.ip ? esc(intf.ip) : 'Sin IP'}</span></li>`).join('') : `<li class="list-group-item text-muted small">Sin interfaces</li>`;
+
             const dhcpActivo = nodo.dhcpHabilitado && nodo.dhcpPools.length > 0;
             const desgloseDhcp = dhcpActivo ? nodo.dhcpPools.map(pool => `<li class="list-group-item py-1 px-2 d-flex justify-content-between"><span class="fw-bold text-success">${esc(pool.nombre)}</span><span class="font-monospace text-muted">${esc(pool.red)}</span></li>`).join('') : `<li class="list-group-item text-muted small">Sin DHCP</li>`;
+
             const ripActivo = nodo.ripHabilitado && nodo.ripNetworks.length > 0;
             const desgloseRip = ripActivo ? nodo.ripNetworks.map(net => `<li class="list-group-item py-1 px-2 font-monospace">${esc(net)}</li>`).join('') : `<li class="list-group-item text-muted small">Sin RIPv2</li>`;
+
+            const eigrpActivo = nodo.eigrpHabilitado && nodo.eigrpNetworks.length > 0;
+            const desgloseEigrp = eigrpActivo ? nodo.eigrpNetworks.map(e => `<li class="list-group-item py-1 px-2 d-flex justify-content-between font-monospace"><span>${esc(e.red)}</span><span class="text-success">${esc(e.wildcard)}</span></li>`).join('') : `<li class="list-group-item text-muted small">Sin EIGRP</li>`;
+            // CORREGIDO: ya no se inventa un "AS 10"; solo se muestra el AS real
+            const tituloEigrp = (eigrpActivo && nodo.eigrpAS) ? ` (AS ${esc(nodo.eigrpAS)})` : '';
+
             const auditList = nodo.auditoriaLogs.length > 0 ? nodo.auditoriaLogs.map(l => `<li class="list-group-item py-1 px-2 small font-monospace">${l.tipo === 'danger' ? '❌' : (l.tipo === 'warning' ? '⚠️' : '✅')} ${esc(l.texto)}</li>`).join('') : `<li class="list-group-item text-muted small">Sin auditoría</li>`;
 
             return `
             <div class="accordion-item mb-2 border shadow-sm">
                 <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold text-dark bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_${indexReal}">
                     ✅ ${esc(nodo.cliente)} <span class="badge bg-secondary ms-2">${esc(nodo.direccion)}</span> ${semaforoBadge}
-                    <span class="ms-auto me-3 d-none d-md-block"><span class="badge bg-primary me-1">${nodo.interfaces.length} INTs</span><span class="badge bg-success me-1">${dhcpActivo ? nodo.dhcpPools.length : 0} DHCPs</span><span class="badge bg-dark">${ripActivo ? nodo.ripNetworks.length : 0} RIPs</span></span>
+                    <span class="ms-auto me-3 d-none d-md-block">
+                        <span class="badge bg-primary me-1">${nodo.interfaces.length} INTs</span>
+                        <span class="badge bg-success me-1">${dhcpActivo ? nodo.dhcpPools.length : 0} DHCPs</span>
+                        <span class="badge bg-dark me-1">${ripActivo ? nodo.ripNetworks.length : 0} RIPs</span>
+                        <span class="badge bg-warning text-dark">${eigrpActivo ? nodo.eigrpNetworks.length : 0} EIGRPs</span>
+                    </span>
                 </button></h2>
                 <div id="collapse_${indexReal}" class="accordion-collapse collapse" data-bs-parent="#acordeonResumenNodos">
                     <div class="accordion-body bg-white border-top">
                         <div class="row mb-4">
-                            <div class="col-md-3"><h6 class="fw-bold text-primary border-bottom pb-1">Interfaces</h6><ul class="list-group list-group-flush">${desgloseIntf}</ul></div>
-                            <div class="col-md-3"><h6 class="fw-bold text-success border-bottom pb-1">Pools DHCP</h6><ul class="list-group list-group-flush">${desgloseDhcp}</ul></div>
-                            <div class="col-md-3"><h6 class="fw-bold text-dark border-bottom pb-1">Redes RIPv2</h6><ul class="list-group list-group-flush">${desgloseRip}</ul></div>
-                            <div class="col-md-3"><h6 class="fw-bold text-danger border-bottom pb-1">Diagnóstico IP</h6><ul class="list-group list-group-flush">${auditList}</ul></div>
+                            <div class="col-12 col-md-6 col-xl mb-3"><h6 class="fw-bold text-primary border-bottom pb-1">Interfaces</h6><ul class="list-group list-group-flush">${desgloseIntf}</ul></div>
+                            <div class="col-12 col-md-6 col-xl mb-3"><h6 class="fw-bold text-success border-bottom pb-1">Pools DHCP</h6><ul class="list-group list-group-flush">${desgloseDhcp}</ul></div>
+                            <div class="col-12 col-md-6 col-xl mb-3"><h6 class="fw-bold text-dark border-bottom pb-1">Redes RIPv2</h6><ul class="list-group list-group-flush">${desgloseRip}</ul></div>
+                            <div class="col-12 col-md-6 col-xl mb-3"><h6 class="fw-bold text-success border-bottom pb-1">Redes EIGRP${tituloEigrp}</h6><ul class="list-group list-group-flush">${desgloseEigrp}</ul></div>
+                            <div class="col-12 col-md-6 col-xl mb-3"><h6 class="fw-bold text-danger border-bottom pb-1">Diagnóstico IP</h6><ul class="list-group list-group-flush">${auditList}</ul></div>
                         </div>
                         <div class="d-flex justify-content-between mb-2"><span class="text-muted fw-bold small">Script CLI:</span><button class="btn btn-sm btn-outline-primary btn-copiar-resumen fw-bold" data-script="${encodeURIComponent(nodo.scriptGenerado)}">📋 Copiar Script</button></div>
                         <pre class="bg-dark text-success p-3 rounded font-monospace m-0">${esc(nodo.scriptGenerado)}</pre>
@@ -893,14 +1323,24 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // ==========================================
+    // 12. DELEGACIÓN DE CLICS EN TABLA
+    // ==========================================
     tablaNodosBody.addEventListener("click", function (event) {
         if (event.target.closest(".copy-click")) {
             event.stopPropagation();
             const span = event.target.closest(".copy-click");
             copiarAlPortapapeles(span.textContent.trim(), null, "");
-            const originalBg = span.style.backgroundColor; const originalColor = span.style.color;
-            span.style.backgroundColor = "#198754"; span.style.color = "white";
-            setTimeout(() => { span.style.backgroundColor = originalBg; span.style.color = originalColor; }, 800);
+
+            const originalBg = span.style.backgroundColor;
+            const originalColor = span.style.color;
+            span.style.backgroundColor = "#198754";
+            span.style.color = "white";
+
+            setTimeout(() => {
+                span.style.backgroundColor = originalBg;
+                span.style.color = originalColor;
+            }, 800);
             return;
         }
 
@@ -909,9 +1349,15 @@ document.addEventListener("DOMContentLoaded", () => {
             const index = parseInt(event.target.closest(".btn-eliminar").getAttribute("data-index"), 10);
             historialBorrados.push({ index: index, nodo: listaNodos[index] });
             listaNodos.splice(index, 1);
-            if (nodoSeleccionadoIndex === index) { nodoSeleccionadoIndex = null; intfEditIndex = null; }
-            else if (nodoSeleccionadoIndex !== null && nodoSeleccionadoIndex > index) nodoSeleccionadoIndex--;
-            renderizarTabla(); return;
+
+            if (nodoSeleccionadoIndex === index) {
+                nodoSeleccionadoIndex = null;
+                intfEditIndex = null;
+            } else if (nodoSeleccionadoIndex !== null && nodoSeleccionadoIndex > index) {
+                nodoSeleccionadoIndex--;
+            }
+            renderizarTabla();
+            return;
         }
 
         const fila = event.target.closest(".fila-nodo");
@@ -919,22 +1365,67 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!guardEdit()) return;
             const index = parseInt(fila.getAttribute("data-index"), 10);
             nodoSeleccionadoIndex = (nodoSeleccionadoIndex === index) ? null : index;
-            intfEditIndex = null; seccionRouter.style.display = "none"; panelAuditoria.style.display = "none";
-            terminalRouter.textContent = TEXTO_TERMINAL_VACIO; btnListoRouter.style.display = "none";
+            intfEditIndex = null;
+            seccionRouter.style.display = "none";
+            panelAuditoria.style.display = "none";
+            terminalRouter.textContent = TEXTO_TERMINAL_VACIO;
+            btnListoRouter.style.display = "none";
             renderizarTabla();
         }
     });
 
-    // --- Helpers Matemáticos ---
-    function esIPv4Valida(ip) { return /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ip); }
-    function esMascaraValida(m) { return esIPv4Valida(m) && /^1*0*$/.test(m.split('.').map(o => Number(o).toString(2).padStart(8, '0')).join('')); }
-    function contarBitsMascara(maskOct) { return maskOct.reduce((acc, o) => acc + (o.toString(2).split('1').length - 1), 0); }
-    function calcularMascara(cidr) { const m = []; for (let i = 0; i < 4; i++) { if (cidr >= 8) { m.push(255); cidr -= 8; } else if (cidr > 0) { m.push(256 - Math.pow(2, 8 - cidr)); cidr = 0; } else { m.push(0); } } return m; }
-    function calcularRed(ipArray, maskArray) { return ipArray.map((octeto, i) => octeto & maskArray[i]); }
-    function calcularBroadcast(redArray, wildcardArray) { return redArray.map((octeto, i) => octeto | wildcardArray[i]); }
-    function ipToInt(ipArray) { return ((ipArray[0] << 24) | (ipArray[1] << 16) | (ipArray[2] << 8) | ipArray[3]) >>> 0; }
-    function intToIp(int) { return [(int >>> 24) & 255, (int >>> 16) & 255, (int >>> 8) & 255, int & 255]; }
-    function mostrarMensaje(contenedor, html, tipo) { contenedor.innerHTML = `<div class="alert alert-${tipo}" role="alert">${html}</div>`; }
+    // ==========================================
+    // 13. HELPERS MATEMÁTICOS DE RED
+    // ==========================================
+    const OCTETO = "(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
+    const RE_IPV4 = new RegExp(`^${OCTETO}\\.${OCTETO}\\.${OCTETO}\\.${OCTETO}$`);
 
+    function esIPv4Valida(ip) {
+        return typeof ip === "string" && RE_IPV4.test(ip);
+    }
+
+    function esMascaraValida(m) {
+        return esIPv4Valida(m) && /^1*0*$/.test(m.split('.').map(o => Number(o).toString(2).padStart(8, '0')).join(''));
+    }
+
+    function contarBitsMascara(maskOct) {
+        return maskOct.reduce((acc, o) => acc + (o.toString(2).split('1').length - 1), 0);
+    }
+
+    function calcularMascara(cidr) {
+        const m = [];
+        for (let i = 0; i < 4; i++) {
+            if (cidr >= 8) { m.push(255); cidr -= 8; }
+            else if (cidr > 0) { m.push(256 - Math.pow(2, 8 - cidr)); cidr = 0; }
+            else { m.push(0); }
+        }
+        return m;
+    }
+
+    function calcularWildcard(maskArray) {
+        return maskArray.map(m => 255 - m);
+    }
+
+    function calcularRed(ipArray, maskArray) {
+        return ipArray.map((octeto, i) => octeto & maskArray[i]);
+    }
+
+    function calcularBroadcast(redArray, wildcardArray) {
+        return redArray.map((octeto, i) => octeto | wildcardArray[i]);
+    }
+
+    function ipToInt(ipArray) {
+        return ((ipArray[0] << 24) | (ipArray[1] << 16) | (ipArray[2] << 8) | ipArray[3]) >>> 0;
+    }
+
+    function intToIp(int) {
+        return [(int >>> 24) & 255, (int >>> 16) & 255, (int >>> 8) & 255, int & 255];
+    }
+
+    function mostrarMensaje(contenedor, html, tipo) {
+        contenedor.innerHTML = `<div class="alert alert-${tipo}" role="alert">${html}</div>`;
+    }
+
+    // Inicialización
     cargarDatosStorage();
 });
